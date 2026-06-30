@@ -51,10 +51,24 @@ else()
 endif()
 
 if(BGFX_CONFIG_RENDERER_WEBGPU)
-	include(${CMAKE_CURRENT_LIST_DIR}/3rdparty/webgpu.cmake)
 	if(EMSCRIPTEN)
-		target_link_options(bgfx PRIVATE "-s USE_WEBGPU=1")
+		# Emscripten WebGPU goes through Dawn's emdawnwebgpu port, NOT the
+		# deprecated/removed -sUSE_WEBGPU=1 built-in bindings (they are mutually
+		# exclusive; the port errors if USE_WEBGPU=1 is also set). emdawnwebgpu
+		# also provides the <webgpu/webgpu.h> bgfx's renderer includes, so the
+		# 3rdparty/webgpu.cmake include path must NOT be added here (it would
+		# shadow the port headers) — keep it in the else() branch only.
+		# --use-port must be passed to BOTH compile and link. JSPI is required
+		# for the blocking wgpuInstanceWaitAny(UINT64_MAX) in renderer_webgpu.cpp
+		# (alternative for pre-JSPI browsers: -sASYNCIFY=1 -sASYNCIFY_STACK_SIZE=10000).
+		# PUBLIC so the flags propagate to executables linking bgfx.
+		target_compile_options(bgfx PUBLIC "--use-port=emdawnwebgpu")
+		target_link_options(bgfx PUBLIC
+			"--use-port=emdawnwebgpu"
+			"-sJSPI=1"
+		)
 	else()
+		include(${CMAKE_CURRENT_LIST_DIR}/3rdparty/webgpu.cmake)
 		target_link_libraries(bgfx PRIVATE webgpu)
 	endif()
 endif()
